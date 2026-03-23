@@ -1,0 +1,35 @@
+{
+  "skill_name": "seam-pms-integration",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I'm building a vacation rental management platform in Node.js. We have reservation data (check-in/check-out times, guest info) and we want to automatically create access codes on smart locks when a guest books a stay. We don't have a Seam account yet. We want property managers to be able to connect their own locks without us building a bunch of UI for that. Can you help me set this up?",
+      "expected_output": "Should recommend Reservation Automations with Customer Portal (property managers connect their own locks via Seam's hosted UI). Node.js code. Full setup from scratch. Should explore the codebase to find reservation creation/cancellation handlers and write the integration there.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "hey so im a coworking space platform and we already manage our own member access system but we want to use seam to actually talk to the locks. we basically just need to create and delete access codes when members book a room. we use ruby and have seam set up already with real devices. whats the quickest way to wire this up?",
+      "expected_output": "Should route to lower-level API. Ruby code. Skip setup. Should look at existing codebase for booking handlers and write access_codes.create/delete calls there. Include webhook setup. Concise tone.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "We're a property management company that manages about 200 short-term rental units. We built our own booking system in Python and want to integrate with Seam so that when a guest makes a reservation, they automatically get a unique door code for their unit that works only during their stay. We also need to handle early checkouts and reservation changes. We just created a Seam account but haven't done anything else yet.",
+      "expected_output": "Should recommend Reservation Automations. Python code. Should walk through sandbox setup, space creation, push_data in their reservation handler, delete_data in cancellation handler, webhook setup. Should cover lifecycle (updates via same reservation_key, early checkout via delete_data).",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "We run a boutique hotel chain with smart locks on every room. We're building a custom guest app and want to give guests both a PIN code and an Instant Key link when they check in. We need to be able to set specific doors per guest (room + lobby + gym). We use TypeScript and already have Seam connected in our sandbox.",
+      "expected_output": "Should route to Access Grants — multiple access method types (code + mobile_key for Instant Key) and per-entrance control. TypeScript code. Should show access_grants.create with requested_access_methods for both 'code' and 'mobile_key' modes, device_ids for specific doors, and how to extract the instant_key_url from the response to send to the guest. Skip account setup.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "prompt": "We have a Node.js Express app for our vacation rental platform. Our property managers currently have to manually set door codes on each lock. We want to automate this through Seam but we don't want to build device management UI ourselves — is there a way for property managers to set up their own locks? We already have a Seam account.",
+      "expected_output": "Should recommend Reservation Automations with Customer Portal — the developer explicitly doesn't want to build device management UI. Should explain Customer Portal as Seam's hosted UI for property managers. Should show how to create a portal session and link to it. Then cover push_data for the automation side.",
+      "files": []
+    }
+  ]
+}
