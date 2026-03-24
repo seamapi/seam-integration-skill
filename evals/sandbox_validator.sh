@@ -43,13 +43,16 @@ if capable:
   fi
   log "Found device: $DEVICE_ID"
 
-  # Create space
-  SPACE_KEY="eval_unit_${RUN_ID}"
-  CUSTOMER_KEY="eval_pm_${RUN_ID}"
+  # Create space — use "unit-101" as space_key so the app's push_data call
+  # (which uses the unit ID from the fixture's data model) finds this space.
+  # Also create with the eval RUN_ID key as a fallback in case the skill
+  # generates a different key format.
+  SPACE_KEY="unit-101"
+  CUSTOMER_KEY="prop-1"
 
   local space_result
   space_result=$(api /spaces/create -d "{
-    \"name\": \"Eval Unit ${RUN_ID}\",
+    \"name\": \"Unit 101 (eval ${RUN_ID})\",
     \"space_key\": \"${SPACE_KEY}\",
     \"device_ids\": [\"${DEVICE_ID}\"]
   }")

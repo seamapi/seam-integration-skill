@@ -143,7 +143,11 @@ space = seam.spaces.create(
 
 #### 4A.2. Add push_data to reservation creation
 
-Find the function/method that creates reservations and add the `push_data` call:
+**Important: SDK method naming varies by language:**
+- Python/Ruby: `seam.customers.push_data(customer_key=..., ...)` (snake_case)
+- JavaScript/TypeScript: `seam.customers.pushData({ customer_key: "...", ... })` (camelCase method, but parameter names stay snake_case in the request body)
+
+Find the function/method that creates reservations and add the `push_data` call **directly inside that function** (not in a separate helper). This keeps the integration easy to find and debug:
 
 ```python
 # Inside your create_reservation function:
@@ -164,7 +168,14 @@ seam.customers.push_data(
 )
 ```
 
-Important: each guest's `email_address` must be unique. Duplicate emails cause the automation to silently skip the reservation (the API returns `ok: true` but no code is created).
+**Parameter details:**
+- `customer_key` — a string you define to identify the property manager. Use an existing ID from your data model (e.g., property ID or property manager ID). This is NOT a Seam-generated ID.
+- `user_identity_key` — unique identifier for the guest. Prefix with `guest_` to avoid collisions.
+- `reservation_key` — unique identifier for the reservation. Prefix with `res_` to avoid collisions.
+- `space_keys` — array of space keys matching the unit. Use the same key you used in `spaces.create` (typically the unit ID from your data model).
+- `email_address` — must be unique per guest. Duplicate emails cause the automation to silently skip the reservation.
+
+**Keep the integration minimal:** Add the Seam calls directly in the existing reservation service functions. Don't create unnecessary wrapper services or abstraction layers — the integration should be a few lines in each handler, not a new service file.
 
 #### 4A.3. Add push_data to reservation updates
 
