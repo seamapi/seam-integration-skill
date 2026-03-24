@@ -1,0 +1,28 @@
+{
+  "expected_files_modified": [
+    "blueprints/reservations.py",
+    "services/reservation_service.py"
+  ],
+  "expected_new_files_allowed": [
+    "services/seam_service.py",
+    "blueprints/seam_webhooks.py",
+    "config/seam.py",
+    "lib/seam.py"
+  ],
+  "expected_calls": {
+    "create": ["customers.push_data"],
+    "update": ["customers.push_data"],
+    "cancel": ["customers.delete_data"]
+  },
+  "expected_placements": {
+    "customers.push_data": ["create_reservation", "update_reservation"],
+    "customers.delete_data": ["cancel_reservation"]
+  },
+  "required_parameters": {
+    "push_data": ["customer_key", "reservations", "user_identities"],
+    "delete_data": ["customer_key", "reservation_keys"]
+  },
+  "expected_package_additions": {
+    "requirements.txt": ["seam"]
+  }
+}
