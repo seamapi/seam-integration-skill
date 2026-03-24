@@ -1,0 +1,325 @@
+#!/bin/bash
+# Eval orchestrator — invokes the skill against fixture apps, runs scoring layers,
+# and produces a summary table.
+#
+# Usage:
+#   bash evals/run_evals.sh [--fixtures express-ts,flask-py] [--layers rubric,sandbox,both] \
+#                            [--api-path reservation_automations] [--runs N]
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+###############################################################################
+# Logging — all log output to stderr
+###############################################################################
+log() { echo "[$(date +%H:%M:%S)] $*" >&2; }
+
+###############################################################################
+# 1. Argument parsing
+###############################################################################
+FIXTURES=""
+LAYERS="both"
+API_PATH=""
+RUNS=1
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --fixtures)  FIXTURES="$2"; shift 2 ;;
+    --layers)    LAYERS="$2";   shift 2 ;;
+    --api-path)  API_PATH="$2"; shift 2 ;;
+    --runs)      RUNS="$2";     shift 2 ;;
+    *)           log "Unknown option: $1"; exit 1 ;;
+  esac
+done
+
+# Default fixtures: all dirs under evals/fixtures/ that contain eval_config.json
+if [[ -z "$FIXTURES" ]]; then
+  FIXTURES=""
+  for dir in "${SCRIPT_DIR}"/fixtures/*/; do
+    if [[ -f "${dir}eval_config.json" ]]; then
+      FIXTURES="${FIXTURES:+${FIXTURES} }$(basename "$dir")"
+    fi
+  done
+fi
+
+# Convert comma-separated to space-separated
+FIXTURES="${FIXTURES//,/ }"
+
+# Filter by --api-path if provided
+if [[ -n "$API_PATH" ]]; then
+  FILTERED=""
+  for fixture in $FIXTURES; do
+    FIXTURE_DIR="${SCRIPT_DIR}/fixtures/${fixture}"
+    EXPECTED=$(python3 -c "import json; print(json.load(open('${FIXTURE_DIR}/eval_config.json')).get('expected_api_path',''))")
+    if [[ "$EXPECTED" == "$API_PATH" ]]; then
+      FILTERED="${FILTERED:+${FILTERED} }${fixture}"
+    fi
+  done
+  FIXTURES="$FILTERED"
+fi
+
+if [[ -z "$FIXTURES" ]]; then
+  log "No fixtures matched. Exiting."
+  exit 1
+fi
+
+log "Fixtures: ${FIXTURES}"
+log "Layers:   ${LAYERS}"
+log "Runs:     ${RUNS}"
+
+###############################################################################
+# Validations
+###############################################################################
+if ! command -v python3 &>/dev/null; then
+  log "ERROR: python3 is required but not found."
+  exit 1
+fi
+
+if ! command -v claude &>/dev/null; then
+  log "ERROR: claude CLI is required but not found."
+  exit 1
+fi
+
+if [[ "$LAYERS" == *sandbox* ]] || [[ "$LAYERS" == "both" ]]; then
+  if [[ -z "${SEAM_API_KEY:-}" ]]; then
+    log "ERROR: SEAM_API_KEY env var is required for sandbox layer."
+    exit 1
+  fi
+  if ! command -v docker &>/dev/null; then
+    log "ERROR: docker is required for sandbox layer."
+    exit 1
+  fi
+fi
+
+###############################################################################
+# 2. invoke_skill(fixture_dir) — run Claude against a fixture, return workdir
+###############################################################################
+invoke_skill() {
+  local fixture_dir="$1"
+
+  # Create temp working directory
+  local working_dir
+  working_dir=$(mktemp -d)
+
+  # Copy app contents to temp dir
+  cp -a "${fixture_dir}/app/." "$working_dir/"
+
+  # Initialize git repo (needed for diff later)
+  (cd "$working_dir" && git init -q && git add -A && git commit -q -m "pristine") 2>/dev/null
+
+  # Read prompt and skill content
+  local prompt
+  prompt=$(python3 -c "import json; print(json.load(open('${fixture_dir}/eval_config.json'))['prompt'])")
+  local skill_content
+  skill_content=$(cat "${SCRIPT_DIR}/../SKILL.md")
+
+  # Invoke Claude in headless mode with 10-minute timeout
+  log "  Claude working in: ${working_dir}"
+  timeout 600 claude -p "[SKILL INSTRUCTIONS]
+${skill_content}
+[/SKILL INSTRUCTIONS]
+
+${prompt}" \
+    --allowedTools Read,Write,Edit,Glob,Grep,Bash \
+    --cwd "$working_dir" 2>/dev/null || true
+
+  echo "$working_dir"
+}
+
+###############################################################################
+# 3. run_rubric(pristine_dir, modified_dir, fixture_dir)
+###############################################################################
+run_rubric() {
+  local pristine_dir="$1"
+  local modified_dir="$2"
+  local fixture_dir="$3"
+
+  python3 "${SCRIPT_DIR}/rubric_checker.py" \
+    --pristine "$pristine_dir" \
+    --modified "$modified_dir" \
+    --fixture-dir "$fixture_dir"
+}
+
+###############################################################################
+# 4. run_sandbox(modified_dir, fixture_dir, run_id)
+###############################################################################
+run_sandbox() {
+  local modified_dir="$1"
+  local fixture_dir="$2"
+  local run_id="$3"
+
+  bash "${SCRIPT_DIR}/sandbox_validator.sh" \
+    --modified-dir "$modified_dir" \
+    --fixture-dir "$fixture_dir" \
+    --run-id "$run_id"
+}
+
+###############################################################################
+# 5. print_summary(results_base_dir) — formatted table to stdout
+###############################################################################
+print_summary() {
+  local results_base="$1"
+
+  python3 - "$results_base" "$FIXTURES" "$RUNS" <<'PYEOF'
+import json, sys, os, glob
+
+results_base = sys.argv[1]
+fixtures = sys.argv[2].split()
+runs = int(sys.argv[3])
+
+rows = []
+for fixture in fixtures:
+    rubric_scores = []
+    sandbox_scores = []
+    combined_scores = []
+    api_path = ""
+
+    # Read api_path from eval_config
+    script_dir = os.path.dirname(os.path.abspath(sys.argv[0])) if sys.argv[0] else "."
+    # results_base already contains the path we need
+    fixture_config = os.path.join(os.path.dirname(results_base), "fixtures", fixture, "eval_config.json")
+    # Try a few paths
+    for candidate in [
+        fixture_config,
+        os.path.join(results_base, "..", "..", "fixtures", fixture, "eval_config.json"),
+    ]:
+        try:
+            with open(os.path.realpath(candidate)) as f:
+                api_path = json.load(f).get("expected_api_path", "")
+            break
+        except (FileNotFoundError, OSError):
+            continue
+
+    for run in range(1, runs + 1):
+        run_dir = os.path.join(results_base, fixture, f"run_{run}")
+
+        rubric_file = os.path.join(run_dir, "rubric.json")
+        sandbox_file = os.path.join(run_dir, "sandbox.json")
+
+        r_score = None
+        s_score = None
+
+        if os.path.exists(rubric_file):
+            try:
+                with open(rubric_file) as f:
+                    r_score = json.load(f)["total"]
+                rubric_scores.append(r_score)
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        if os.path.exists(sandbox_file):
+            try:
+                with open(sandbox_file) as f:
+                    s_score = json.load(f)["total"]
+                sandbox_scores.append(s_score)
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+        # Combined: 40% rubric + 60% sandbox
+        if r_score is not None and s_score is not None:
+            combined_scores.append(round(0.4 * r_score + 0.6 * s_score))
+        elif r_score is not None:
+            combined_scores.append(r_score)
+        elif s_score is not None:
+            combined_scores.append(s_score)
+
+    def fmt(scores):
+        if not scores:
+            return "  -  "
+        if len(scores) == 1:
+            return f"  {scores[0]}  "
+        mean = round(sum(scores) / len(scores))
+        lo = min(scores)
+        hi = max(scores)
+        return f"{mean} ({lo}-{hi})"
+
+    api_col = f"✓ {api_path}" if api_path else "-"
+    rows.append((fixture, fmt(rubric_scores), fmt(sandbox_scores), fmt(combined_scores), api_col))
+
+# Print table
+hdr = f"{'Fixture':<15}| {'Rubric':^12}| {'Sandbox':^12}| {'Combined':^12}| API Path"
+sep = f"{'-'*15}|{'-'*13}|{'-'*13}|{'-'*13}|{'-'*20}"
+print(hdr)
+print(sep)
+for fixture, rubric, sandbox, combined, api in rows:
+    print(f"{fixture:<15}| {rubric:^12}| {sandbox:^12}| {combined:^12}| {api}")
+PYEOF
+}
+
+###############################################################################
+# 6. Main loop
+###############################################################################
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+RESULTS_BASE="${SCRIPT_DIR}/results/${TIMESTAMP}"
+
+for fixture in $FIXTURES; do
+  FIXTURE_DIR="${SCRIPT_DIR}/fixtures/${fixture}"
+  PRISTINE_DIR="${FIXTURE_DIR}/app"
+
+  for run in $(seq 1 "$RUNS"); do
+    RUN_ID="${fixture}_${TIMESTAMP}_${run}"
+    RESULTS_DIR="${RESULTS_BASE}/${fixture}/run_${run}"
+    mkdir -p "$RESULTS_DIR"
+
+    log "=== ${fixture} run ${run}/${RUNS} ==="
+
+    # Invoke skill — don't let failures kill the whole run
+    log "Invoking skill..."
+    WORKING_DIR=""
+    if WORKING_DIR=$(invoke_skill "$FIXTURE_DIR"); then
+      log "Skill invocation complete."
+    else
+      log "WARNING: Skill invocation failed for ${fixture} run ${run}. Skipping."
+      continue
+    fi
+
+    # Save diff
+    (cd "$WORKING_DIR" && git diff HEAD) > "${RESULTS_DIR}/diff.patch" 2>/dev/null || true
+
+    # Run layers
+    RUBRIC_SCORE=""
+    SANDBOX_SCORE=""
+
+    if [[ "$LAYERS" == *rubric* ]] || [[ "$LAYERS" == "both" ]]; then
+      log "Running rubric checker..."
+      if RUBRIC_RESULT=$(run_rubric "$PRISTINE_DIR" "$WORKING_DIR" "$FIXTURE_DIR"); then
+        echo "$RUBRIC_RESULT" > "${RESULTS_DIR}/rubric.json"
+        RUBRIC_SCORE=$(echo "$RUBRIC_RESULT" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['total'])" 2>/dev/null) || true
+        log "Rubric score: ${RUBRIC_SCORE:-error}"
+      else
+        log "WARNING: Rubric checker failed for ${fixture} run ${run}."
+      fi
+    fi
+
+    if [[ "$LAYERS" == *sandbox* ]] || [[ "$LAYERS" == "both" ]]; then
+      log "Running sandbox validator..."
+      if SANDBOX_RESULT=$(run_sandbox "$WORKING_DIR" "$FIXTURE_DIR" "$RUN_ID"); then
+        echo "$SANDBOX_RESULT" > "${RESULTS_DIR}/sandbox.json"
+        SANDBOX_SCORE=$(echo "$SANDBOX_RESULT" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['total'])" 2>/dev/null) || true
+        log "Sandbox score: ${SANDBOX_SCORE:-error}"
+      else
+        log "WARNING: Sandbox validator failed for ${fixture} run ${run}."
+      fi
+    fi
+
+    # Log combined score
+    if [[ -n "$RUBRIC_SCORE" ]] && [[ -n "$SANDBOX_SCORE" ]]; then
+      COMBINED=$(python3 -c "print(round(0.4*${RUBRIC_SCORE} + 0.6*${SANDBOX_SCORE}))")
+      log "Combined score: ${COMBINED}"
+    elif [[ -n "$RUBRIC_SCORE" ]]; then
+      log "Combined score: ${RUBRIC_SCORE} (rubric only)"
+    elif [[ -n "$SANDBOX_SCORE" ]]; then
+      log "Combined score: ${SANDBOX_SCORE} (sandbox only)"
+    fi
+
+    # Clean up working dir
+    rm -rf "$WORKING_DIR"
+  done
+done
+
+log "All runs complete. Results in: ${RESULTS_BASE}"
+log "Printing summary..."
+echo "" >&2
+
+print_summary "$RESULTS_BASE"
