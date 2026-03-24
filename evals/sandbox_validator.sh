@@ -50,6 +50,7 @@ if capable:
   SPACE_KEY="unit-101"
   CUSTOMER_KEY="prop-1"
 
+  # Try to create space; if it already exists, look it up instead
   local space_result
   space_result=$(api /spaces/create -d "{
     \"name\": \"Unit 101 (eval ${RUN_ID})\",
@@ -60,11 +61,28 @@ if capable:
   SPACE_ID=$(echo "$space_result" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('space',{}).get('space_id',''))")
 
   if [ -z "$SPACE_ID" ]; then
-    log "ERROR: Failed to create space"
-    echo "$space_result" >&2
-    exit 1
+    # Space may already exist from a previous run — look it up
+    log "Space create returned error, looking up existing space..."
+    local spaces_result
+    spaces_result=$(api /spaces/list)
+    SPACE_ID=$(echo "$spaces_result" | SPACE_KEY="$SPACE_KEY" python3 -c "
+import sys, json, os
+spaces = json.loads(sys.stdin.read()).get('spaces', [])
+key = os.environ['SPACE_KEY']
+for s in spaces:
+    if s.get('space_key') == key:
+        print(s['space_id'])
+        break
+")
+    if [ -z "$SPACE_ID" ]; then
+      log "ERROR: Failed to create or find space"
+      echo "$space_result" >&2
+      exit 1
+    fi
+    log "Found existing space: $SPACE_ID (key: $SPACE_KEY)"
+  else
+    log "Space created: $SPACE_ID (key: $SPACE_KEY)"
   fi
-  log "Space created: $SPACE_ID (key: $SPACE_KEY)"
 }
 
 ###############################################################################
