@@ -131,8 +131,6 @@ await seam.customers.pushData({
 
 ### 4. Add delete_data to cancellations
 
-**The parameter is `customer_key` (singular string), NOT `customer_keys`.** This is the exact same parameter name as in `push_data`. There is no plural variant — using `customer_keys` will silently fail.
-
 ```typescript
 // Inside cancelReservation():
 await seam.customers.deleteData({
@@ -140,7 +138,6 @@ await seam.customers.deleteData({
   reservation_keys: [`res_${reservation.id}`],
   user_identity_keys: [`guest_${reservation.guestId}`]
 });
-// ⚠️ customer_key is a string, NOT customer_keys array
 ```
 
 ```python
@@ -150,7 +147,6 @@ seam.customers.delete_data(
     reservation_keys=[f"res_{reservation.id}"],
     user_identity_keys=[f"guest_{reservation.guest_id}"]
 )
-# ⚠️ customer_key is a string, NOT customer_keys array
 ```
 
 ### 5. Add webhook endpoint
