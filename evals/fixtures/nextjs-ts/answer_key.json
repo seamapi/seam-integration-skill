@@ -1,0 +1,29 @@
+{
+  "expected_files_modified": [
+    "src/lib/services/reservationService.ts",
+    "src/app/api/reservations/route.ts",
+    "src/app/api/reservations/[id]/route.ts"
+  ],
+  "expected_new_files_allowed": [
+    "src/lib/services/seamService.ts",
+    "src/app/api/webhooks/seam/route.ts",
+    "src/lib/seam.ts",
+    "src/lib/config/seam.ts"
+  ],
+  "expected_calls": {
+    "create": ["customers.push_data"],
+    "update": ["customers.push_data"],
+    "cancel": ["customers.delete_data"]
+  },
+  "expected_placements": {
+    "customers.push_data": ["createReservation", "updateReservation"],
+    "customers.delete_data": ["cancelReservation"]
+  },
+  "required_parameters": {
+    "push_data": ["customer_key", "reservations", "user_identities"],
+    "delete_data": ["customer_keys", "reservation_keys"]
+  },
+  "expected_package_additions": {
+    "package.json": ["seam"]
+  }
+}
