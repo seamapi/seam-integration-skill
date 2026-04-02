@@ -103,7 +103,7 @@ export async function cancelReservation(id: string): Promise<Reservation> {
   reservation.status = "cancelled";
 
   await seam.customers.delete_data({
-    customer_key: `pm_${reservation.unitId}`,
+    customer_keys: [`pm_${reservation.unitId}`],
     reservation_keys: [`res_${reservation.id}`],
     user_identity_keys: [`guest_${reservation.guestId}`]
   });

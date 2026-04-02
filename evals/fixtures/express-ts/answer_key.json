@@ -20,7 +20,7 @@
   },
   "required_parameters": {
     "push_data": ["customer_key", "reservations", "user_identities"],
-    "delete_data": ["customer_key", "reservation_keys"]
+    "delete_data": ["customer_keys", "reservation_keys"]
   },
   "expected_package_additions": {
     "package.json": ["seam"]
