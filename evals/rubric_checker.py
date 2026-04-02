@@ -165,16 +165,16 @@ def check_calls_in_expected_functions(modified_files_content, answer_key):
     def _find_function_body(content, func_name):
         """Find approximate function body text for func_name."""
         patterns = [
-            # async function funcName or function funcName
+            # def funcName (Python) — check first to avoid false matches on call sites
+            rf'def\s+{re.escape(func_name)}\s*\(',
+            # async function funcName or function funcName (JS/TS)
             rf'(?:async\s+)?function\s+{re.escape(func_name)}\s*\(',
-            # const funcName = (async) (...) =>
+            # const funcName = (async) (...) => (JS/TS arrow functions)
             rf'(?:const|let|var)\s+{re.escape(func_name)}\s*=\s*(?:async\s*)?\(',
             # const funcName = async (
             rf'(?:const|let|var)\s+{re.escape(func_name)}\s*=\s*async\s*\(',
-            # class method: funcName(
-            rf'^\s+(?:async\s+)?{re.escape(func_name)}\s*\(',
-            # def funcName (Python)
-            rf'def\s+{re.escape(func_name)}\s*\(',
+            # class method: funcName( — must be preceded by keywords or decorators, not a call
+            rf'^\s+(?:async\s+)?{re.escape(func_name)}\s*\([^)]*\)\s*[\{{\:]',
         ]
 
         for pattern in patterns:
