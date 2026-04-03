@@ -15,7 +15,7 @@ class ReservationService
 
         // Find existing guest by email or create a new one
         $guest = null;
-        foreach (Store::$guests as $g) {
+        foreach (Store::getGuests() as $g) {
             if ($g['email'] === ($data['guest_email'] ?? '')) {
                 $guest = $g;
                 break;
@@ -28,7 +28,7 @@ class ReservationService
                 'name' => $data['guest_name'] ?? '',
                 'email' => $data['guest_email'] ?? '',
             ];
-            Store::$guests[] = $guest;
+            Store::addGuest($guest);
         }
 
         $reservation = [
@@ -41,48 +41,52 @@ class ReservationService
             'status' => 'confirmed',
         ];
 
-        Store::$reservations[] = $reservation;
+        Store::addReservation($reservation);
 
         return $reservation;
     }
 
     public static function updateReservation(string $id, array $data): array
     {
-        foreach (Store::$reservations as &$reservation) {
-            if ($reservation['id'] === $id) {
-                if (isset($data['check_in'])) {
-                    $reservation['check_in'] = $data['check_in'];
-                }
-                if (isset($data['check_out'])) {
-                    $reservation['check_out'] = $data['check_out'];
-                }
-                return $reservation;
+        $result = Store::updateReservationById($id, function (array $reservation) use ($data) {
+            if (isset($data['check_in'])) {
+                $reservation['check_in'] = $data['check_in'];
             }
+            if (isset($data['check_out'])) {
+                $reservation['check_out'] = $data['check_out'];
+            }
+            return $reservation;
+        });
+
+        if (!$result) {
+            throw new \InvalidArgumentException("Reservation not found: {$id}");
         }
 
-        throw new \InvalidArgumentException("Reservation not found: {$id}");
+        return $result;
     }
 
     public static function cancelReservation(string $id): array
     {
-        foreach (Store::$reservations as &$reservation) {
-            if ($reservation['id'] === $id) {
-                $reservation['status'] = 'cancelled';
-                return $reservation;
-            }
+        $result = Store::updateReservationById($id, function (array $reservation) {
+            $reservation['status'] = 'cancelled';
+            return $reservation;
+        });
+
+        if (!$result) {
+            throw new \InvalidArgumentException("Reservation not found: {$id}");
         }
 
-        throw new \InvalidArgumentException("Reservation not found: {$id}");
+        return $result;
     }
 
     public static function getReservation(string $id): array
     {
-        foreach (Store::$reservations as $reservation) {
-            if ($reservation['id'] === $id) {
-                return $reservation;
-            }
+        $reservation = Store::findReservation($id);
+
+        if (!$reservation) {
+            throw new \InvalidArgumentException("Reservation not found: {$id}");
         }
 
-        throw new \InvalidArgumentException("Reservation not found: {$id}");
+        return $reservation;
     }
 }
