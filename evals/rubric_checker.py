@@ -218,17 +218,19 @@ def check_calls_in_expected_functions(modified_files_content, answer_key):
                 return content[start:next_start]
         return None
 
-    # Build camelCase variants of SDK call names
+    # Build variants of SDK call names for cross-language matching
     def _variants(call_name):
-        """Return both snake_case and camelCase variants of a call name."""
+        """Return snake_case, camelCase, and URL-path variants of a call name."""
         variants = {call_name}
-        # snake_case → camelCase: push_data → pushData
+        # snake_case → camelCase: customers.push_data → customers.pushData
         parts = call_name.split(".")
         camel_parts = []
         for part in parts:
             words = part.split("_")
             camel_parts.append(words[0] + "".join(w.capitalize() for w in words[1:]))
         variants.add(".".join(camel_parts))
+        # URL-path style: customers.push_data → /customers/push_data
+        variants.add("/" + "/".join(parts))
         return variants
 
     for sdk_call, func_names in expected_placements.items():
@@ -286,12 +288,12 @@ def check_required_params_present(modified_files_content, answer_key):
 
     call_scores = []
     for call_name, params in required_params.items():
-        # Search for both snake_case and camelCase variants of the call
+        # Search for snake_case, camelCase, and URL-path variants of the call
         call_variants = [call_name, _snake_to_camel(call_name)]
-        # Also handle dotted names: customers.push_data → customers.pushData
         if "." in call_name:
             parts = call_name.split(".")
             call_variants.append(parts[0] + "." + _snake_to_camel(parts[1]))
+            call_variants.append("/" + "/".join(parts))  # URL-path: /customers/push_data
 
         call_found = False
         param_hits = 0
@@ -329,17 +331,15 @@ def check_all_handlers_modified(modified_files_content, answer_key):
 
     for phase, calls in expected_calls.items():
         for call in calls:
-            # Check both snake_case and camelCase variants
-            if call in all_content or _snake_to_camel(call) in all_content:
-                phases_covered += 1
-                break
-            # Also check dotted camelCase: customers.push_data → customers.pushData
+            # Build all variants: snake_case, camelCase, URL-path, dotted camelCase
+            variants = {call, _snake_to_camel(call)}
             if "." in call:
                 parts = call.split(".")
-                camel_dotted = parts[0] + "." + _snake_to_camel(parts[1])
-                if camel_dotted in all_content:
-                    phases_covered += 1
-                    break
+                variants.add(parts[0] + "." + _snake_to_camel(parts[1]))
+                variants.add("/" + "/".join(parts))  # URL-path: /customers/push_data
+            if any(v in all_content for v in variants):
+                phases_covered += 1
+                break
 
     return phases_covered / total_phases if total_phases > 0 else 1.0
 
