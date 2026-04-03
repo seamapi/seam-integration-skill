@@ -55,10 +55,29 @@ import { Seam } from "seam";
 const seam = new Seam({ apiKey: process.env.SEAM_API_KEY });
 ```
 
+**Next.js / Vercel:** Do NOT initialize the Seam client at module scope — it runs during `next build` when env vars aren't available. Use a lazy getter instead:
+
+```typescript
+// Next.js — lazy initialization
+import { Seam } from "seam";
+let _seam: Seam;
+function getSeam() {
+  if (!_seam) _seam = new Seam({ apiKey: process.env.SEAM_API_KEY! });
+  return _seam;
+}
+// Then use getSeam() instead of seam in your handlers
+```
+
 ```python
 # Python
 from seam import Seam
 seam = Seam(api_key=os.environ["SEAM_API_KEY"])
+```
+
+```ruby
+# Ruby
+require "seam"
+seam = Seam.new(api_key: ENV["SEAM_API_KEY"])
 ```
 
 ### 2. Add push_data to reservation creation

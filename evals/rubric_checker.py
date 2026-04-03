@@ -97,6 +97,15 @@ def read_modified_files(modified_dir, file_list):
 # Check functions (each returns 0.0 - 1.0)
 # ---------------------------------------------------------------------------
 
+def _normalize_content(content):
+    """Normalize language-specific syntax so checks work across JS/TS/Python/Ruby/PHP.
+
+    PHP uses -> for method calls (e.g., $seam->customers->push_data).
+    Normalize to dot notation so 'customers.push_data' matches all languages.
+    """
+    return content.replace("->", ".")
+
+
 def check_api_path_match(modified_files_content, eval_config):
     """Check that the expected API path signature is found and wrong ones aren't."""
     # Each path maps to multiple signatures (snake_case REST + camelCase SDK)
@@ -111,7 +120,7 @@ def check_api_path_match(modified_files_content, eval_config):
     if not expected_sigs:
         return 0.0
 
-    all_content = "\n".join(modified_files_content.values())
+    all_content = _normalize_content("\n".join(modified_files_content.values()))
 
     found_expected = any(sig in all_content for sig in expected_sigs)
 
@@ -162,11 +171,18 @@ def check_calls_in_expected_functions(modified_files_content, answer_key):
     hits = 0
 
     # Build function boundary patterns
+    # Normalize PHP -> to . so SDK call matching works across all languages
+    normalized_content = {path: _normalize_content(c) for path, c in modified_files_content.items()}
+
     def _find_function_body(content, func_name):
         """Find approximate function body text for func_name."""
         patterns = [
             # def funcName (Python) — check first to avoid false matches on call sites
             rf'def\s+{re.escape(func_name)}\s*\(',
+            # def self.funcName (Ruby class method)
+            rf'def\s+self\.{re.escape(func_name)}',
+            # [public/private/protected] [static] function funcName (PHP/JS/TS)
+            rf'(?:public|private|protected)?\s*(?:static\s+)?(?:async\s+)?function\s+{re.escape(func_name)}\s*\(',
             # async function funcName or function funcName (JS/TS)
             rf'(?:async\s+)?function\s+{re.escape(func_name)}\s*\(',
             # const funcName = (async) (...) => (JS/TS arrow functions)
@@ -187,6 +203,8 @@ def check_calls_in_expected_functions(modified_files_content, answer_key):
                     r'(?:export\s+)?(?:async\s+)?function\s+\w+\s*\(',
                     r'(?:export\s+)?(?:const|let|var)\s+\w+\s*=\s*(?:async\s*)?\(',
                     r'def\s+\w+\s*\(',
+                    r'def\s+self\.\w+',
+                    r'(?:public|private|protected)\s+(?:static\s+)?function\s+\w+\s*\(',
                 ]
                 body_start = start + len(match.group())
                 next_start = len(content)
@@ -218,7 +236,7 @@ def check_calls_in_expected_functions(modified_files_content, answer_key):
         for func_name in func_names:
             total += 1
             found = False
-            for _path, content in modified_files_content.items():
+            for _path, content in normalized_content.items():
                 # Direct check: SDK call inside the target function body
                 body = _find_function_body(content, func_name)
                 if body and any(v in body for v in call_variants):
@@ -235,7 +253,7 @@ def check_calls_in_expected_functions(modified_files_content, answer_key):
                         if called in (func_name, "if", "for", "while", "catch", "switch", "console", "throw", "return"):
                             continue
                         # Check if the called function contains the SDK call
-                        for _p2, content2 in modified_files_content.items():
+                        for _p2, content2 in normalized_content.items():
                             helper_body = _find_function_body(content2, called)
                             if helper_body and any(v in helper_body for v in call_variants):
                                 found = True
@@ -264,7 +282,7 @@ def check_required_params_present(modified_files_content, answer_key):
 
     all_content_lines = {}
     for path, content in modified_files_content.items():
-        all_content_lines[path] = content.split("\n")
+        all_content_lines[path] = _normalize_content(content).split("\n")
 
     call_scores = []
     for call_name, params in required_params.items():
@@ -304,7 +322,7 @@ def check_all_handlers_modified(modified_files_content, answer_key):
     if not expected_calls:
         return 1.0
 
-    all_content = "\n".join(modified_files_content.values())
+    all_content = _normalize_content("\n".join(modified_files_content.values()))
 
     phases_covered = 0
     total_phases = len(expected_calls)
@@ -335,14 +353,16 @@ def check_webhook_route_added(modified_files_content):
         "access_code.failed_to_set_on_device",
     ]
 
-    all_content = "\n".join(modified_files_content.values())
+    all_content = _normalize_content("\n".join(modified_files_content.values()))
 
-    # Check for route with seam (case-insensitive) — supports Express, Flask, Rails patterns
+    # Check for route with seam (case-insensitive) — supports Express, Flask, Rails, Laravel patterns
     has_seam_route = bool(re.search(
         r'(?:'
         r'(?:router|app)\s*\.\s*(?:post|get|put|use)\s*\(\s*["\'/].*seam'  # Express
         r'|@\w+\.route\s*\(\s*["\'/].*seam'  # Flask
         r'|post\s+["\'/].*seam'  # Rails
+        r'|Route::post\s*\(\s*["\'/].*seam'  # Laravel
+        r'|function\s+seam\s*\('  # PHP controller method named seam
         r')',
         all_content, re.IGNORECASE))
 
