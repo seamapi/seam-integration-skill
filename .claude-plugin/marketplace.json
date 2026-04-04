@@ -1,0 +1,12 @@
+{
+  "name": "seamapi",
+  "description": "Seam integration plugins for AI coding assistants",
+  "plugins": [
+    {
+      "name": "seam-pms-integration",
+      "description": "Guided integration agent for building Seam smart lock access code automation into a PMS. Includes the Seam docs MCP server for real-time API reference.",
+      "source": ".",
+      "version": "0.4.0"
+    }
+  ]
+}

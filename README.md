@@ -15,6 +15,20 @@ The skill works across TypeScript, JavaScript, Python, Ruby, and PHP codebases.
 
 ## Install
 
+### Claude Code (recommended — includes Seam docs MCP server)
+
+```bash
+# Add the marketplace
+/plugin marketplace add seamapi/seam-integration-skill
+
+# Install the plugin
+/plugin install seam-pms-integration@seamapi
+```
+
+This installs both the skill and the Seam docs MCP server, giving Claude real-time access to Seam API documentation.
+
+### Other AI tools (Cursor, Codex, Copilot, Gemini CLI, etc.)
+
 ```bash
 # Via skills.sh
 npx skills add seamapi/seam-integration-skill
@@ -23,9 +37,11 @@ npx skills add seamapi/seam-integration-skill
 git clone https://github.com/seamapi/seam-integration-skill.git
 ```
 
+For non-plugin installs, optionally add the [Seam MCP docs server](https://mcp.seam.co/mcp) to your tool's MCP config for better results.
+
 ## Usage
 
-Load `SKILL.md` as a system prompt or skill in your AI coding assistant, then describe your integration needs:
+Load the skill in your AI coding assistant (via plugin or `SKILL.md`), then describe your integration needs:
 
 > "I'm building a short-term rental PMS in TypeScript with Express. We want to automatically create access codes on smart locks when guests book. We use August and Yale locks."
 
