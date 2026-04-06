@@ -1,0 +1,28 @@
+{
+  "expected_files_modified": [
+    "app/Services/BookingService.php",
+    "app/Http/Controllers/BookingController.php"
+  ],
+  "expected_new_files_allowed": [
+    "app/Services/SeamService.php",
+    "app/Http/Controllers/SeamWebhookController.php",
+    "config/seam.php"
+  ],
+  "expected_calls": {
+    "create": ["access_grants.create"],
+    "update": ["access_grants.update"],
+    "cancel": ["access_grants.delete"]
+  },
+  "expected_placements": {
+    "access_grants.create": ["createBooking"],
+    "access_grants.update": ["updateBooking"],
+    "access_grants.delete": ["cancelBooking"]
+  },
+  "required_parameters": {
+    "access_grants.create": ["user_identity", "device_ids", "starts_at", "ends_at"],
+    "access_grants.delete": ["access_grant_id"]
+  },
+  "expected_package_additions": {
+    "composer.json": ["seam"]
+  }
+}
