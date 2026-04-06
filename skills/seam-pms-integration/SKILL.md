@@ -199,13 +199,17 @@ If the reservation service functions aren't already async, make them async and u
 
 ## Quick start: Access Grants
 
-For PMS apps that need per-entrance control or multiple credential types.
+For apps that need per-entrance control or multiple credential types (PIN codes, mobile keys).
+
+Access Grants requires a `device_id` for each door. Look for the device ID in environment variables (e.g., `SEAM_DEVICE_ID`, `SEAM_DEVICE_ROOM_101`) or in the app's data model. If the app doesn't have device IDs yet, read them from `process.env.SEAM_DEVICE_ID` or equivalent — the device IDs are configured when the property manager connects their locks.
+
+**Important:** You must store the `access_grant_id` returned by `create` on the booking/reservation object so you can update or delete it later.
 
 ### In reservation creation:
 ```typescript
 const accessGrant = await seam.accessGrants.create({
   user_identity: { full_name: guest.name, email_address: guest.email },
-  device_ids: [unit.seamDeviceId],
+  device_ids: [process.env.SEAM_DEVICE_ID || unit.seamDeviceId],
   requested_access_methods: [
     { mode: "code" },          // PIN code
     // { mode: "mobile_key" }  // Add for mobile key + Instant Key

@@ -162,10 +162,18 @@ start_app() {
   HOST_PORT=$(python3 -c "import socket; s=socket.socket(); s.bind(('',0)); print(s.getsockname()[1]); s.close()")
 
   CONTAINER_NAME="eval-${FIXTURE_NAME}-${RUN_ID}"
+  # Pass Seam API key + device ID as env vars
+  # For Access Grants fixtures, the app needs to know which device to target.
+  # We expose DEVICE_ID under multiple common env var names so the skill
+  # can find it regardless of what convention Claude uses.
   CONTAINER_ID=$(docker run -d \
     --name "${CONTAINER_NAME}" \
     -p "${HOST_PORT}:${APP_PORT}" \
     -e "${SEAM_ENV_VAR}=${SEAM_API_KEY}" \
+    -e "SEAM_DEVICE_ID=${DEVICE_ID}" \
+    -e "SEAM_DEVICE_ROOM_101=${DEVICE_ID}" \
+    -e "SEAM_DEVICE_ROOM_205=${DEVICE_ID}" \
+    -e "SEAM_DEVICE_ROOM_PH1=${DEVICE_ID}" \
     "${image_tag}")
 
   log "Container started: ${CONTAINER_ID:0:12} on port ${HOST_PORT}"
