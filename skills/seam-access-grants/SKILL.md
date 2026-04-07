@@ -59,11 +59,13 @@ seam = Seam(api_key=os.environ["SEAM_API_KEY"])
 
 ## 2. Get the device ID
 
-Access Grants targets specific devices by `device_id`. Look for device IDs in:
-- Environment variables: `SEAM_DEVICE_ID`, `SEAM_DEVICE_ROOM_101`, `SEAM_DEVICE_ID_ROOM_101`
+Access Grants targets specific devices by `device_id`. **Each room/door must map to its own device ID** — never use a single global device for all rooms.
+
+Look for device IDs in:
+- Environment variables per room: `SEAM_DEVICE_ROOM_101`, `SEAM_DEVICE_ID_ROOM_A1`, etc.
 - The app's data model (e.g., `room.seamDeviceId`, `unit.deviceId`)
 
-If the app doesn't have device IDs yet, read from `process.env.SEAM_DEVICE_ID` — device IDs are configured when locks are connected to Seam.
+**If the mapping is missing, fail the operation** — do not fall back to a global device. Granting access to the wrong door is worse than failing.
 
 ## 3. Create access grant on booking creation
 
@@ -71,13 +73,17 @@ Add directly inside the create function. **Store the `access_grant_id` on the bo
 
 ```typescript
 // Inside createBooking(), after saving the booking:
+const deviceId = getDeviceIdForRoom(room);  // Must resolve per-room
+if (!deviceId) {
+  throw new Error(`No Seam device configured for room ${room.id}`);
+}
 try {
   const accessGrant = await seam.accessGrants.create({
     user_identity: {
       full_name: guest.name,
       email_address: guest.email
     },
-    device_ids: [room.seamDeviceId || process.env.SEAM_DEVICE_ID],
+    device_ids: [deviceId],
     requested_access_methods: [
       { mode: "code" }           // PIN code
       // { mode: "mobile_key" }  // Add for mobile key + Instant Key
@@ -88,15 +94,19 @@ try {
   booking.seamAccessGrantId = accessGrant.access_grant_id;
 } catch (err) {
   console.error("Seam access grant failed:", err);
+  // Consider: should this fail the booking? If access is required, throw.
 }
 ```
 
 ```python
 # Inside create_booking(), after saving:
+device_id = get_device_id_for_room(room)  # Must resolve per-room
+if not device_id:
+    raise ValueError(f"No Seam device configured for room {room.id}")
 try:
     access_grant = seam.access_grants.create(
         user_identity={"full_name": guest.name, "email_address": guest.email},
-        device_ids=[room.seam_device_id or os.environ.get("SEAM_DEVICE_ID")],
+        device_ids=[device_id],
         requested_access_methods=[{"mode": "code"}],
         starts_at=booking.check_in,
         ends_at=booking.check_out
@@ -104,15 +114,17 @@ try:
     booking.seam_access_grant_id = access_grant.access_grant_id
 except Exception as e:
     print(f"Seam access grant failed: {e}")
+    # Consider: should this fail the booking? If access is required, raise.
 ```
 
 ## Gotchas
 
-- **Store `access_grant_id`** — you need it for update and delete. Add a field to the booking model if one doesn't exist.
+- **Store `access_grant_id`** — you need it for update and delete. Add a field to the booking model if one doesn't exist. If it's `null`/`undefined`, the grant failed and needs retry.
+- **Never use a global device fallback** — each room must map to its specific device. Wrong-room access is worse than no access.
 - **`user_identity`** takes `full_name` and `email_address`, NOT `name` and `email`.
 - **`device_ids`** is an array — you can grant access to multiple doors in one call.
 - **`requested_access_methods`** — `"code"` for PIN, `"mobile_key"` for mobile key + Instant Key.
-- Wrap all Seam calls in try/catch — Seam errors shouldn't break the booking flow.
+- **Decide your failure mode**: if access is required for the booking (e.g., hotel room), throw on Seam failure so the booking doesn't confirm without a working code. If access is optional (e.g., gym), log and continue.
 
 ## 4. Update access grant on booking changes
 

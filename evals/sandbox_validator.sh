@@ -44,6 +44,10 @@ if capable:
   fi
   log "Found device: $DEVICE_ID"
 
+  # WARNING: This cleanup is destructive — it deletes ALL grants and codes on the
+  # sandbox device, not just those from the current run. This is a known limitation
+  # with a single sandbox device. Proper isolation requires multiple devices with
+  # per-run resource tagging. See Codex review finding #4.
   # Delete any existing access grants from prior runs
   local existing_grants
   existing_grants=$(api /access_grants/list)
@@ -406,7 +410,13 @@ validate_update() {
   # Verify the specific access code still exists AND its ends_at was updated
   # Poll for up to 30s since the update may take a moment to propagate
   local new_ends_at
-  new_ends_at=$(echo "$EVAL_CONFIG" | python3 -c "import sys,json; print(json.loads(sys.stdin.read())['test_endpoints']['update']['payload'].get('checkOut', json.loads(sys.stdin.read())['test_endpoints']['update']['payload'].get('check_out', '')))" 2>/dev/null || echo "")
+  new_ends_at=$(echo "$EVAL_CONFIG" | python3 -c "
+import sys, json
+config = json.loads(sys.stdin.read())
+payload = config['test_endpoints']['update']['payload']
+# Try both camelCase and snake_case field names
+print(payload.get('checkOut', payload.get('check_out', payload.get('endTime', payload.get('end_time', '')))))
+" 2>/dev/null || echo "")
   new_ends_at=$(resolve_payload "$new_ends_at")
 
   log "Checking access code ${CREATED_CODE_ID:-unknown} updated (expected ends_at contains: ${new_ends_at:-any})..."

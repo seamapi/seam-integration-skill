@@ -59,11 +59,13 @@ seam = Seam(api_key=os.environ["SEAM_API_KEY"])
 
 ## 2. Get the device ID
 
-Access Codes targets a specific device by `device_id`. Look for device IDs in:
-- Environment variables: `SEAM_DEVICE_ID`, `SEAM_DEVICE_ROOM_A1`, `SEAM_DEVICE_ID_ROOM_101`
+Access Codes targets a specific device by `device_id`. **Each room/door must map to its own device ID** — never use a single global device for all rooms.
+
+Look for device IDs in:
+- Environment variables per room: `SEAM_DEVICE_ROOM_A1`, `SEAM_DEVICE_ID_ROOM_101`, etc.
 - The app's data model (e.g., `room.seamDeviceId`, `unit.deviceId`)
 
-If the app doesn't have device IDs yet, read from `process.env.SEAM_DEVICE_ID`.
+**If the mapping is missing, fail the operation** — do not fall back to a global device.
 
 ## 3. Create access code on booking creation
 
@@ -71,9 +73,13 @@ Add directly inside the create function. **Store the `access_code_id` on the boo
 
 ```typescript
 // Inside createBooking(), after saving the booking:
+const deviceId = getDeviceIdForRoom(room);  // Must resolve per-room
+if (!deviceId) {
+  throw new Error(`No Seam device configured for room ${room.id}`);
+}
 try {
   const accessCode = await seam.accessCodes.create({
-    device_id: room.seamDeviceId || process.env.SEAM_DEVICE_ID,
+    device_id: deviceId,
     name: `${member.name} - ${room.name}`,
     starts_at: booking.startTime,
     ends_at: booking.endTime
@@ -82,14 +88,18 @@ try {
   booking.accessCode = accessCode.code;  // The actual PIN
 } catch (err) {
   console.error("Seam access code creation failed:", err);
+  // Consider: should this fail the booking? If access is required, throw.
 }
 ```
 
 ```python
 # Inside create_booking(), after saving:
+device_id = get_device_id_for_room(room)  # Must resolve per-room
+if not device_id:
+    raise ValueError(f"No Seam device configured for room {room.id}")
 try:
     access_code = seam.access_codes.create(
-        device_id=room.seam_device_id or os.environ.get("SEAM_DEVICE_ID"),
+        device_id=device_id,
         name=f"{member.name} - {room.name}",
         starts_at=booking.start_time,
         ends_at=booking.end_time
@@ -98,16 +108,18 @@ try:
     booking.access_code = access_code.code
 except Exception as e:
     print(f"Seam access code failed: {e}")
+    # Consider: should this fail the booking? If access is required, raise.
 ```
 
 ## Gotchas
 
-- **Store `access_code_id`** — you need it for update and delete. Add a field to the booking model if one doesn't exist.
+- **Store `access_code_id`** — you need it for update and delete. Add a field to the booking model if one doesn't exist. If it's `null`/`undefined`, the code failed and needs retry.
+- **Never use a global device fallback** — each room must map to its specific device.
 - **`device_id`** is a single string (one device per code), not an array.
 - **Don't hardcode the `code`** value unless you need a specific PIN — Seam generates a random code by default.
 - **`name`** is optional but recommended — it appears in the Seam Console for identification.
 - **Code slot limits** — some locks have a max number of codes. Check `device.properties.max_active_codes_supported`.
-- Wrap all Seam calls in try/catch — Seam errors shouldn't break the booking flow.
+- **Decide your failure mode**: if the room booking requires access (e.g., locked meeting room), throw on Seam failure. If access is optional, log and continue.
 
 ## 4. Update access code on booking changes
 
