@@ -6,8 +6,8 @@
     "name": "Seam",
     "url": "https://seam.co"
   },
-  "homepage": "https://github.com/seamapi/seam-integration-skill",
-  "repository": "https://github.com/seamapi/seam-integration-skill",
+  "homepage": "https://github.com/seamapi/seam-plugin",
+  "repository": "https://github.com/seamapi/seam-plugin",
   "license": "MIT",
   "keywords": ["seam", "smart-locks", "access-codes", "access-grants", "iot", "pms", "hotel", "coworking"],
   "skills": "./skills/",

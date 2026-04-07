@@ -18,7 +18,7 @@ Each skill guides the AI through exploring the codebase, finding the right integ
 
 ```bash
 # Add the marketplace
-/plugin marketplace add seamapi/seam-integration-skill
+/plugin marketplace add seamapi/seam-plugin
 
 # Install the plugin
 /plugin install seam@seamapi
@@ -30,10 +30,10 @@ This installs all three skills plus the Seam docs MCP server for real-time API d
 
 ```bash
 # Via skills.sh
-npx skills add seamapi/seam-integration-skill
+npx skills add seamapi/seam-plugin
 
 # Or clone directly
-git clone https://github.com/seamapi/seam-integration-skill.git
+git clone https://github.com/seamapi/seam-plugin.git
 ```
 
 ## Usage
