@@ -108,11 +108,22 @@ invoke_skill() {
   # Initialize git repo (needed for diff later)
   (cd "$working_dir" && git init -q && git add -A && git commit -q -m "pristine") 2>/dev/null
 
-  # Read prompt and skill content
-  local prompt
+  # Read prompt and load the matching skill based on expected_api_path
+  local prompt api_path skill_file
   prompt=$(python3 -c "import json; print(json.load(open('${fixture_dir}/eval_config.json'))['prompt'])")
+  api_path=$(python3 -c "import json; print(json.load(open('${fixture_dir}/eval_config.json')).get('expected_api_path','reservation_automations'))")
+
+  # Map API path to skill file
+  case "$api_path" in
+    reservation_automations) skill_file="${SCRIPT_DIR}/../skills/seam-reservation-automations/SKILL.md" ;;
+    access_grants)           skill_file="${SCRIPT_DIR}/../skills/seam-access-grants/SKILL.md" ;;
+    lower_level)             skill_file="${SCRIPT_DIR}/../skills/seam-access-codes/SKILL.md" ;;
+    *)                       skill_file="${SCRIPT_DIR}/../SKILL.md" ;;
+  esac
+
   local skill_content
-  skill_content=$(cat "${SCRIPT_DIR}/../SKILL.md")
+  skill_content=$(cat "$skill_file")
+  log "  Using skill: $(basename $(dirname $skill_file))"
 
   # Invoke Claude in headless mode with 10-minute timeout
   # Note: macOS doesn't have `timeout`, so we use a background process with kill
