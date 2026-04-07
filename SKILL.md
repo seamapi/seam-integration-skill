@@ -1,1 +1,0 @@
-skills/seam-reservation-automations/SKILL.md
