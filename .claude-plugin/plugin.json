@@ -1,7 +1,7 @@
 {
-  "name": "seam-pms-integration",
-  "version": "0.4.0",
-  "description": "Guided integration agent for building Seam smart lock access code automation into a PMS. Bundles the Seam docs MCP server for real-time API reference.",
+  "name": "seam-integration",
+  "version": "0.5.0",
+  "description": "Three focused skills for integrating Seam smart lock access codes: Reservation Automations (push data, Seam handles codes), Access Grants (per-door credential control), and Access Codes (direct manual control). Bundles the Seam docs MCP server.",
   "author": {
     "name": "Seam",
     "url": "https://seam.co"
@@ -9,7 +9,7 @@
   "homepage": "https://github.com/seamapi/seam-integration-skill",
   "repository": "https://github.com/seamapi/seam-integration-skill",
   "license": "MIT",
-  "keywords": ["seam", "smart-locks", "pms", "access-codes", "iot"],
+  "keywords": ["seam", "smart-locks", "access-codes", "access-grants", "iot", "pms", "hotel", "coworking"],
   "skills": "./skills/",
   "mcpServers": {
     "seam-docs": {

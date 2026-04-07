@@ -1,1 +1,1 @@
-skills/seam-pms-integration/SKILL.md
+skills/seam-reservation-automations/SKILL.md

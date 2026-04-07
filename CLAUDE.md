@@ -6,9 +6,12 @@ An AI skill that guides developers through integrating Seam smart lock access co
 
 ## Key files
 
-- `skills/seam-pms-integration/SKILL.md` — the skill itself (v0.4.0). Root `SKILL.md` is a symlink.
-- `.claude-plugin/plugin.json` — Claude Code plugin manifest. Bundles the skill + Seam MCP docs server.
-- `.claude-plugin/marketplace.json` — self-hosted marketplace config for plugin discovery.
+- `skills/seam-reservation-automations/SKILL.md` — Reservation Automations skill (PMS, vacation rentals)
+- `skills/seam-access-grants/SKILL.md` — Access Grants skill (hotels, gyms, offices)
+- `skills/seam-access-codes/SKILL.md` — Access Codes skill (coworking, custom access)
+- `skills/*/references/` — shared troubleshooting and production checklist (loaded on demand)
+- `.claude-plugin/plugin.json` — Claude Code plugin manifest. Bundles all 3 skills + Seam MCP docs server.
+- Root `SKILL.md` is a symlink to seam-reservation-automations (backwards compat for non-plugin consumers).
 - `evals/run_evals.sh` — eval orchestrator. Invokes the skill against fixtures, runs rubric + sandbox scoring.
 - `evals/rubric_checker.py` — Layer 1: structural scoring (0-100) against answer keys.
 - `evals/sandbox_validator.sh` — Layer 2: Docker build + Seam sandbox validation (0-100).
