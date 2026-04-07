@@ -21,7 +21,7 @@ Each skill guides the AI through exploring the codebase, finding the right integ
 /plugin marketplace add seamapi/seam-integration-skill
 
 # Install the plugin
-/plugin install seam-integration@seamapi
+/plugin install seam@seamapi
 ```
 
 This installs all three skills plus the Seam docs MCP server for real-time API documentation.

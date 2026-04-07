@@ -1,5 +1,5 @@
 {
-  "name": "seam-integration",
+  "name": "seam",
   "version": "0.5.0",
   "description": "Three focused skills for integrating Seam smart lock access codes: Reservation Automations (push data, Seam handles codes), Access Grants (per-door credential control), and Access Codes (direct manual control). Bundles the Seam docs MCP server.",
   "author": {
