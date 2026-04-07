@@ -1,0 +1,33 @@
+{
+  "expected_files_modified": [
+    "src/lib/services/bookingService.ts",
+    "src/app/api/bookings/route.ts",
+    "src/app/api/bookings/[id]/route.ts",
+    "src/lib/models/types.ts",
+    "src/lib/models/store.ts",
+    "package.json"
+  ],
+  "expected_new_files_allowed": [
+    "src/lib/services/seamService.ts",
+    "src/app/api/webhooks/seam/route.ts",
+    "src/lib/seam.ts",
+    "src/lib/config/seam.ts"
+  ],
+  "expected_calls": {
+    "create": ["access_codes.create"],
+    "update": ["access_codes.update"],
+    "cancel": ["access_codes.delete"]
+  },
+  "expected_placements": {
+    "access_codes.create": ["createBooking"],
+    "access_codes.update": ["updateBooking"],
+    "access_codes.delete": ["cancelBooking"]
+  },
+  "required_parameters": {
+    "access_codes.create": ["device_id", "starts_at", "ends_at"],
+    "access_codes.delete": ["access_code_id"]
+  },
+  "expected_package_additions": {
+    "package.json": ["seam"]
+  }
+}
