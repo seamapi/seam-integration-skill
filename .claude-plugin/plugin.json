@@ -13,8 +13,7 @@
   "skills": "./skills/",
   "mcpServers": {
     "seam-docs": {
-      "command": "npx",
-      "args": ["-y", "@anthropic-ai/mcp-remote", "https://mcp.seam.co/sse"]
+      "url": "https://mcp.seam.co/mcp"
     }
   }
 }
