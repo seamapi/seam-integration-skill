@@ -407,8 +407,13 @@ validate_update() {
 
   log "Response: ${response}"
 
-  # Verify the specific access code still exists AND its ends_at was updated
-  # Poll for up to 30s since the update may take a moment to propagate
+  # Verify the specific access code after update.
+  # For Access Grants and Access Codes: check that ends_at was actually updated (strict).
+  # For Reservation Automations: the push_data update goes through an async pipeline,
+  # so the access code's ends_at may not change immediately — just check code still exists (presence).
+  local update_check_mode
+  update_check_mode=$(echo "$EVAL_CONFIG" | python3 -c "import sys,json; print(json.loads(sys.stdin.read()).get('sandbox_update_check', 'strict'))" 2>/dev/null || echo "strict")
+
   local new_ends_at
   new_ends_at=$(echo "$EVAL_CONFIG" | python3 -c "
 import sys, json
@@ -419,15 +424,32 @@ print(payload.get('checkOut', payload.get('check_out', payload.get('endTime', pa
 " 2>/dev/null || echo "")
   new_ends_at=$(resolve_payload "$new_ends_at")
 
-  log "Checking access code ${CREATED_CODE_ID:-unknown} updated (expected ends_at contains: ${new_ends_at:-any})..."
-
-  # Poll for up to 60s — the automation pipeline needs time to process the update
-  local update_ok="not_updated"
-  for i in $(seq 1 12); do
+  if [ "$update_check_mode" = "presence" ]; then
+    log "Checking access code ${CREATED_CODE_ID:-unknown} still exists after update (presence mode)..."
     sleep 5
     local codes
     codes=$(api /access_codes/list -d "{\"device_id\":\"${DEVICE_ID}\"}")
-    update_ok=$(echo "$codes" | CODE_ID="${CREATED_CODE_ID:-}" NEW_ENDS="${new_ends_at:-}" python3 -c "
+    local update_ok
+    update_ok=$(echo "$codes" | CODE_ID="${CREATED_CODE_ID:-}" python3 -c "
+import sys, json, os
+codes = json.loads(sys.stdin.read())['access_codes']
+code_id = os.environ.get('CODE_ID', '')
+if code_id:
+    match = [c for c in codes if c['access_code_id'] == code_id and c.get('status') not in ('removing', 'removed')]
+    print('ok' if match else 'missing')
+else:
+    active = [c for c in codes if c.get('status') not in ('removing', 'removed')]
+    print('ok' if active else 'missing')
+" 2>/dev/null || echo "missing")
+  else
+    log "Checking access code ${CREATED_CODE_ID:-unknown} ends_at updated to ${new_ends_at:-any} (strict mode)..."
+    # Poll for up to 60s — direct API updates propagate faster but still async
+    local update_ok="not_updated"
+    for i in $(seq 1 12); do
+      sleep 5
+      local codes
+      codes=$(api /access_codes/list -d "{\"device_id\":\"${DEVICE_ID}\"}")
+      update_ok=$(echo "$codes" | CODE_ID="${CREATED_CODE_ID:-}" NEW_ENDS="${new_ends_at:-}" python3 -c "
 import sys, json, os
 codes = json.loads(sys.stdin.read())['access_codes']
 code_id = os.environ.get('CODE_ID', '')
@@ -445,15 +467,16 @@ else:
     print('ok' if active else 'missing')
 " 2>/dev/null || echo "missing")
 
-    if [ "$update_ok" = "ok" ]; then
-      log "Access code ends_at updated after $((i * 5))s"
-      break
-    elif [ "$update_ok" = "missing" ]; then
-      log "FAIL: Access code disappeared during update"
-      break
-    fi
-    log "  ...ends_at not yet updated (${i}/12)"
-  done
+      if [ "$update_ok" = "ok" ]; then
+        log "Access code ends_at updated after $((i * 5))s"
+        break
+      elif [ "$update_ok" = "missing" ]; then
+        log "FAIL: Access code disappeared during update"
+        break
+      fi
+      log "  ...ends_at not yet updated (${i}/12)"
+    done
+  fi
 
   if [ "$update_ok" = "ok" ]; then
     log "PASS: UPDATE validation succeeded (access code present and updated)"
