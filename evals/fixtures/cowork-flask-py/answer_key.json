@@ -1,0 +1,34 @@
+{
+  "expected_files_modified": [
+    "services/booking_service.py",
+    "blueprints/bookings.py",
+    "blueprints/webhooks.py",
+    "models/booking.py",
+    "models/room.py",
+    "models/store.py",
+    "requirements.txt"
+  ],
+  "expected_new_files_allowed": [
+    "services/seam_service.py",
+    "blueprints/seam_webhooks.py",
+    "config/seam.py",
+    "lib/seam.py"
+  ],
+  "expected_calls": {
+    "create": ["access_codes.create"],
+    "update": ["access_codes.update"],
+    "cancel": ["access_codes.delete"]
+  },
+  "expected_placements": {
+    "access_codes.create": ["create_booking"],
+    "access_codes.update": ["update_booking"],
+    "access_codes.delete": ["cancel_booking"]
+  },
+  "required_parameters": {
+    "access_codes.create": ["device_id", "starts_at", "ends_at"],
+    "access_codes.delete": ["access_code_id"]
+  },
+  "expected_package_additions": {
+    "requirements.txt": ["seam"]
+  }
+}
